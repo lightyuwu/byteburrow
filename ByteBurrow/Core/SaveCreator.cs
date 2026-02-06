@@ -1,9 +1,22 @@
 using System.Reflection;
-using System.Runtime.CompilerServices;
+#if UNITY
+using UnityEngine;
+#else
+using System.Numerics;
+#endif
 
 namespace ByteBurrow.Core {
+    /// <summary>
+    /// The Internal Class to handle Saving and Loading of Data.
+    /// <br/>
+    /// Usually you'd want to extend your own class from the <see cref="SaveData"/> class.
+    /// </summary>
     public static class SaveCreator {
 
+        /// <summary>
+        /// <b>ByteBurrow INTERNAL</b>
+        /// Storage of a C# Field and the <see cref="SaveField"/> reference
+        /// </summary>
         private class SortedField
         {
             internal readonly FieldInfo Field;
@@ -16,6 +29,12 @@ namespace ByteBurrow.Core {
             }
         }
         
+        /// <summary>
+        /// <b>ByteBurrow INTERNAL</b>
+        /// Get all SaveFields of an object inside an IOrderedEnumerable
+        /// </summary>
+        /// <param name="obj">The object to search</param>
+        /// <returns>Sorted Fields, Ordered.</returns>
         private static IOrderedEnumerable<SortedField> _GetSortedFields(object obj)
         {
             var objType = obj.GetType();
@@ -35,6 +54,12 @@ namespace ByteBurrow.Core {
             return sortedFields;
         }
         
+        /// <summary>
+        /// Save a C# Object with the BinaryWriter being utilized.
+        /// </summary>
+        /// <param name="obj">The Object to get the SaveFields from</param>
+        /// <param name="writer">The BinaryWriter where the results will be written to</param>
+        /// <exception cref="InvalidDataException">Occurs when a fields class is not a SaveableClass</exception>
         public static void Save(object obj, BinaryWriter writer) {
             var sortedFields = _GetSortedFields(obj);
             
@@ -70,12 +95,67 @@ namespace ByteBurrow.Core {
                     case string str:
                         writer.Write(str); // BinaryWriter already does length prefixing
                         break;
-                    case SavableClass sc: writer.Write(sc.Save()); break;
+                    case SaveableClass sc: writer.Write(sc.Save()); break;
+                    #if UNITY
+                    case Quaternion qa:
+                        writer.Write(qa.x);
+                        writer.Write(qa.y);
+                        writer.Write(qa.z);
+                        writer.Write(qa.w);
+                        break;
+
+                    case Vector3 v3:
+                        writer.Write(v3.x);
+                        writer.Write(v3.y);
+                        writer.Write(v3.z);
+                        break;
+                    
+                    case Vector2 v2:
+                        writer.Write(v2.x);
+                        writer.Write(v2.y);
+                        break;
+                    #else
+                    case Quaternion qa:
+                        writer.Write(qa.X);
+                        writer.Write(qa.Y);
+                        writer.Write(qa.Z);
+                        writer.Write(qa.W);
+                        break;
+                    
+                    case Vector4 v4:
+                        writer.Write(v4.X);
+                        writer.Write(v4.Y);
+                        writer.Write(v4.Z);
+                        writer.Write(v4.W);
+                        break;
+                    
+                    case Vector3 v3:
+                        writer.Write(v3.X);
+                        writer.Write(v3.Y);
+                        writer.Write(v3.Z);
+                        break;
+                    
+                    case Vector2 v2:
+                        writer.Write(v2.X);
+                        writer.Write(v2.Y);
+                        break;
+                    #endif
+                    
+                    default:
+                        throw new InvalidDataException($"Unsupported field type: {field.FieldType.FullName}");
+                        break;
                 }
             }
             
         }
 
+        /// <summary>
+        /// Load data from a BinaryReader into a C# Object
+        /// </summary>
+        /// <param name="obj">The Object to write into</param>
+        /// <param name="reader">The BinaryReader to read from</param>
+        /// <param name="fileVersion">The version of the save data</param>
+        /// <exception cref="InvalidDataException">Occurs when a fields class is not a SaveableClass</exception>
         public static void Load(object obj, BinaryReader reader, SaveableVersion fileVersion)
         {
             var sortedFields = _GetSortedFields(obj);
@@ -136,13 +216,66 @@ namespace ByteBurrow.Core {
                 {
                     field.SetValue(obj, reader.ReadString());
                 }
-                else if (typeof(SavableClass).IsAssignableFrom(type))
+                else if (typeof(SaveableClass).IsAssignableFrom(type))
                 {
                     // recursively create an instance of the correct type
-                    var nested = (SavableClass)Activator.CreateInstance(type, nonPublic: true)!;
+                    var nested = (SaveableClass)Activator.CreateInstance(type, nonPublic: true)!;
                     Load(nested, reader, fileVersion); // recurse
                     field.SetValue(obj, nested);
                 }
+                #if UNITY
+                else if (type == typeof(Quaternion))
+                {
+                    var x = reader.ReadSingle();
+                    var y = reader.ReadSingle();
+                    var z = reader.ReadSingle();
+                    var w = reader.ReadSingle();
+                    field.SetValue(obj, new Quaternion(x, y, z, w));
+                }
+                else if (type == typeof(Vector3))
+                {
+                    var x = reader.ReadSingle();
+                    var y = reader.ReadSingle();
+                    var z = reader.ReadSingle();
+                    field.SetValue(obj, new Vector3(x, y, z));
+                }
+                else if (type == typeof(Vector2))
+                {
+                    var x = reader.ReadSingle();
+                    var y = reader.ReadSingle();
+                    field.SetValue(obj, new Vector2(x, y));
+                }
+                #else
+                else if (type == typeof(Quaternion))
+                {
+                    var x = reader.ReadSingle();
+                    var y = reader.ReadSingle();
+                    var z = reader.ReadSingle();
+                    var w = reader.ReadSingle();
+                    field.SetValue(obj, new Quaternion(x, y, z, w));
+                }
+                else if (type == typeof(Vector4))
+                {
+                    var x = reader.ReadSingle();
+                    var y = reader.ReadSingle();
+                    var z = reader.ReadSingle();
+                    var w = reader.ReadSingle();
+                    field.SetValue(obj, new Vector4(x, y, z, w));
+                }
+                else if (type == typeof(Vector3))
+                {
+                    var x = reader.ReadSingle();
+                    var y = reader.ReadSingle();
+                    var z = reader.ReadSingle();
+                    field.SetValue(obj, new Vector3(x, y, z));
+                }
+                else if (type == typeof(Vector2))
+                {
+                    var x = reader.ReadSingle();
+                    var y = reader.ReadSingle();
+                    field.SetValue(obj, new Vector2(x, y));
+                }
+                #endif
                 else
                 {
                     throw new InvalidDataException($"Unsupported field type: {type.FullName}");
